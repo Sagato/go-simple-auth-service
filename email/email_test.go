@@ -1,38 +1,63 @@
 package email
 
 import (
-	"net/smtp"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
-func TestEmail_SendSuccessful(t *testing.T) {
-	f, r := mockSend(nil)
-	sender := &EmailSender{
-		send: f,
-	}
-	body := "Hello World"
-	err := sender.Send([]string{"me@example.com"}, []byte(body))
+func TestEmail_ParseTemplate(t *testing.T) {
 
+	emailConfig := SetupEmailCredentials(
+		os.Getenv("serverHost"),
+		os.Getenv("serverPort"),
+		os.Getenv("senderAddress"),
+		os.Getenv("username"),
+		os.Getenv("password"))
+
+	fmt.Println(emailConfig)
+
+	es := &EmailSender {
+		&emailConfig,
+		"Test",
+	}
+
+	wd, err := os.Getwd()
+
+	// Get working Directory for correct html template file paths
 	if err != nil {
-		t.Errorf("unexpected error: %s", err)
+		t.Error(err.Error())
 	}
-	if string(r.msg) != body {
-		t.Errorf("wrong message body.\n\nexpected: %s\n got: %s", body, r.msg)
+
+	// Init Anonymous struct with template data
+	data := struct {
+		Name string
+		Greetings string
+		WebsiteUrl string
+		Email string
+		WebsiteName string
+		Year string
+		CompanyName string
+		ActivationLink string
+		From string
+	}{
+		"sagat",
+		"Hello",
+		"https://www.example.com",
+		"sagat@web.de",
+		"Sagateyson",
+		"2019",
+		"sagat corp.",
+		"https://www.example.com/activate",
+		"testdomain.com",
 	}
-}
 
-func mockSend(errToReturn error) (func(string, smtp.Auth, string, []string, []byte) error, *emailRecorder) {
-	r := new(emailRecorder)
-	return func(addr string, a smtp.Auth, from string, to []string, msg []byte) error {
-		*r = emailRecorder{addr, a, from, to, msg}
-		return errToReturn
-	}, r
-}
+	if err := es.ParseTemplate(filepath.Join(wd,  "../email/templates/registration_mail.html"), data); err != nil {
+		t.Error(err.Error())
+	}
 
-type emailRecorder struct {
-	addr string
-	auth smtp.Auth
-	from string
-	to   []string
-	msg  []byte
+	if es.template == "" {
+		t.Error("template wasnt parsed!")
+	}
 }

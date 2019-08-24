@@ -25,7 +25,7 @@ type Sender interface {
 }
 
 func NewEmailSender(conf *Config, template string) Sender {
-	return &EmailSender{conf, template}
+	return &EmailSender{conf,template }
 }
 
 func (e *EmailSender) ParseTemplate(filepath string, data interface{}) error {

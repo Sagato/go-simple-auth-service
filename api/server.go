@@ -22,7 +22,7 @@ type server struct {
 	email   email.Sender
 }
 
-func newServer() *server {
+func NewServer() *server {
 	return &server{}
 }
 
