@@ -2,8 +2,10 @@ package email
 
 import (
 	"bytes"
+	"fmt"
 	"gopkg.in/gomail.v2"
 	"html/template"
+	"strings"
 )
 
 type Config struct {
@@ -24,7 +26,7 @@ type Sender interface {
 	ParseTemplate(filepath string, data interface{}) error
 }
 
-func NewEmailSender(conf *Config, template string) Sender {
+func NewEmailSender(conf *Config, template string ) Sender {
 	return &EmailSender{conf,template }
 }
 
@@ -49,9 +51,11 @@ func (e *EmailSender) ParseTemplate(filepath string, data interface{}) error {
 
 func (e *EmailSender) Send(to []string) error {
 
+	fmt.Println(strings.Join(to[:],","))
+
 	m := gomail.NewMessage()
 	m.SetHeader("From", e.conf.SenderAddr)
-	m.SetHeader("To", "danyal.iqbal@cheveo.de")
+	m.SetHeader("To", strings.Join(to[:],","))
 	m.SetHeader("Subject", "Hello!")
 	m.SetBody("text/html", e.template)
 

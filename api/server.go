@@ -5,11 +5,13 @@ import (
 	"authentication-service/email"
 	"authentication-service/hashing"
 	"authentication-service/hashing/bcrypt"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/go-pg/pg"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -30,8 +32,29 @@ func (s *server) ServeHttp(w http.ResponseWriter, r *http.Request) {
 	s.router.ServeHTTP(w, r)
 }
 
-func (s *server) decode(w http.ResponseWriter, r *http.Request, v interface{}) error {
-	return json.NewDecoder(r.Body).Decode(v)
+func (s *server) decodeJson(r *http.Request, v interface{}) error {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Req Body: %v", string(body))
+
+	if err := json.Unmarshal(body, &v); err != nil {
+		return err
+	}
+
+	// reset the response body to initial state
+	r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+	return nil
+}
+
+func (s *server) encodeJson(v interface{}) ([]byte, error) {
+	data, err := json.Marshal(&v)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
 }
 
 func Run() {
@@ -53,7 +76,7 @@ func Run() {
 		os.Getenv("username"),
 		os.Getenv("password"))
 
-	es := email.NewEmailSender(&emailConfig,	"test")
+	es := email.NewEmailSender(&emailConfig,	"test", func(to []string) {})
 
 	s := &server {conn, r, bcrypt.New(4), es }
 	s.routes()

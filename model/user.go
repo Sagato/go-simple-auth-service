@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 type NewUser struct {
@@ -17,6 +18,7 @@ type User struct {
 	Email string `json:"email" sql:",notnull,unique"`
 	PasswordHash string `json:"password_hash" sql:",notnull"`
 	Active bool `json:"active" sql:",notnull"`
+	BlockedUntil time.Time `json:"blocked_until"`
 }
 
 type UserDTO struct {

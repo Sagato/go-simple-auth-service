@@ -18,7 +18,7 @@ func (s *server) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	var newUser model.NewUser
 
 	// Decode the body on the request
-	if err := s.decode(w, r, &newUser); err != nil {
+	if err := s.decodeJson(r, &newUser); err != nil {
 		fmt.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -98,13 +98,21 @@ func (s *server) RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 	wd, err := os.Getwd()
 
+	path, err := filepath.Abs(wd)
+
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+
+	fmt.Printf("Path: \n %s", path)
+
 	// Get working Directory for correct html template file paths
 	if err != nil {
 		http.Error(w, "Something went wrong. We are already investigating", http.StatusInternalServerError)
 		return
 	}
 
-	if err := s.email.ParseTemplate(filepath.Join(wd,  "./email/templates/registration_mail.html"), data); err != nil {
+	if err := s.email.ParseTemplate(filepath.Join(wd,  "../email/templates/registration_mail.html"), data); err != nil {
 		fmt.Println(err.Error())
 		http.Error(w, "Something went wrong. We are sorry and already investigating the issue.", http.StatusInternalServerError)
 		return
