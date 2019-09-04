@@ -2,7 +2,6 @@ package email
 
 import (
 	"bytes"
-	"fmt"
 	"gopkg.in/gomail.v2"
 	"html/template"
 	"strings"
@@ -10,7 +9,7 @@ import (
 
 type Config struct {
 	ServerHost string
-	ServerPort string
+	ServerPort int
 	SenderAddr string
 	Username string
 	Password string
@@ -51,15 +50,13 @@ func (e *EmailSender) ParseTemplate(filepath string, data interface{}) error {
 
 func (e *EmailSender) Send(to []string) error {
 
-	fmt.Println(strings.Join(to[:],","))
-
 	m := gomail.NewMessage()
 	m.SetHeader("From", e.conf.SenderAddr)
 	m.SetHeader("To", strings.Join(to[:],","))
 	m.SetHeader("Subject", "Hello!")
 	m.SetBody("text/html", e.template)
 
-	d := gomail.NewDialer("smtp-mail.outlook.com", 587, e.conf.Username, e.conf.Password)
+	d := gomail.NewDialer(e.conf.ServerHost, e.conf.ServerPort, e.conf.Username, e.conf.Password)
 
 	if err := d.DialAndSend(m); err != nil {
 		return err
@@ -67,7 +64,7 @@ func (e *EmailSender) Send(to []string) error {
 	return nil
 }
 
-func SetupEmailCredentials(host, port, senderAddr, username, password string) Config {
+func SetupEmailCredentials(host, senderAddr, username, password string, port int) Config {
 	return Config {
 		host,port, senderAddr, username, password,
 	}

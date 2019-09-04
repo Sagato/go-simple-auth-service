@@ -15,6 +15,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 )
 
 type server struct {
@@ -69,12 +70,18 @@ func Run() {
 		fmt.Println(err.Error())
 	}
 
+	port, err := strconv.Atoi(os.Getenv("serverPort"))
+	if err != nil {
+		panic(err.Error())
+	}
+
 	emailConfig := email.SetupEmailCredentials(
 		os.Getenv("serverHost"),
-		os.Getenv("serverPort"),
 		os.Getenv("senderAddress"),
 		os.Getenv("username"),
-		os.Getenv("password"))
+		os.Getenv("password"),
+		port,
+	)
 
 	es := email.NewEmailSender(&emailConfig,	"test", func(to []string) {})
 
