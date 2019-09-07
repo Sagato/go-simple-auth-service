@@ -19,7 +19,6 @@ func (s *server) RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 	// Decode the body on the request
 	if err := s.decodeJson(r, &newUser); err != nil {
-		fmt.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -55,7 +54,6 @@ func (s *server) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.db.Insert(&insertableUser); err != nil {
-		fmt.Println(err.Error())
 		http.Error(w, "Something went wrong. We are sorry and already investigating the issue.", http.StatusInternalServerError)
 		return
 	}
@@ -68,7 +66,6 @@ func (s *server) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.db.Insert(&activation); err != nil {
-		fmt.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -98,13 +95,9 @@ func (s *server) RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 	wd, err := os.Getwd()
 
-	path, err := filepath.Abs(wd)
-
-	if err != nil {
+	if _, err := filepath.Abs(wd); err != nil {
 		fmt.Println(err.Error())
 	}
-
-	fmt.Printf("Path: \n %s", path)
 
 	// Get working Directory for correct html template file paths
 	if err != nil {
@@ -112,14 +105,12 @@ func (s *server) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.email.ParseTemplate(filepath.Join(wd,  "../email/templates/registration_mail.html"), data); err != nil {
-		fmt.Println(err.Error())
+	if err := s.email.ParseTemplate(filepath.Join(wd,  "./email/templates/registration_mail.html"), data); err != nil {
 		http.Error(w, "Something went wrong. We are sorry and already investigating the issue.", http.StatusInternalServerError)
 		return
 	}
 
 	if err := s.email.Send([]string{ newUser.Email }); err != nil {
-		fmt.Println(err.Error())
 		http.Error(w, "Something went wrong. We are sorry and already investigating the issue.", http.StatusInternalServerError)
 		return
 	}
@@ -135,8 +126,6 @@ func (s *server) ActivateAccount(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "url params are missing", http.StatusBadRequest)
 		return
 	}
-
-	fmt.Println(token[0])
 
 	activation := model.Activation{}
 
@@ -179,7 +168,6 @@ func (s *server) ActivateAccount(w http.ResponseWriter, r *http.Request) {
 	_, err := s.db.Model(&user).Set("active = ?active").Where("id = ?id").Update()
 
 	if err != nil {
-		fmt.Println(err.Error())
 		http.Error(w, "something went wrong. we are already investigating", http.StatusInternalServerError)
 		return
 	}

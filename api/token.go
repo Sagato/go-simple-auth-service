@@ -4,6 +4,7 @@ import (
 	"authentication-service/model"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
 	"golang.org/x/crypto/bcrypt"
@@ -15,8 +16,6 @@ import (
 
 func (s *server) Token(w http.ResponseWriter, r *http.Request) {
 
-	fmt.Printf("User Agent: %s", r.Header.Get("User-Agent"))
-
 	grantType, err := s.checkGrantType(r)
 
 	if err != nil || grantType == "" {
@@ -26,68 +25,9 @@ func (s *server) Token(w http.ResponseWriter, r *http.Request) {
 
 	var user model.User
 
-	switch grantType {
-
-	case "password": {
-		var gt model.GrantTypePassword
-
-		if err := s.decodeJson(r, &gt); err != nil {
-			http.Error(w, "malformed request", http.StatusBadRequest)
-			return
-		}
-
-		if err := s.db.Model(&user).Where("email = ?", gt.Username).Select(); err != nil {
-			if strings.Contains(err.Error(), "no rows in result set") {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-		}
-
-		err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(gt.Password))
-
-		if subtle.ConstantTimeCompare([]byte(gt.Username), []byte(user.Email)) != 1 || err != nil {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-	}
-
-	case "refresh_token": {
-		var gt model.GrantTypeRefreshToken
-		if err := s.decodeJson(r, &gt); err != nil {
-			http.Error(w, "malformed request", http.StatusBadRequest)
-			return
-		}
-
-		var claims jwt.StandardClaims
-
-		tkn, err := jwt.ParseWithClaims(gt.RefreshToken, claims, func(token *jwt.Token) (interface{}, error) {
-			return os.Getenv("jwtSecret"), nil
-		})
-
-		if err != nil {
-			if err == jwt.ErrSignatureInvalid {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		if !tkn.Valid {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-
-		if err := s.db.Model(&user).Where("id = ?", claims.Subject).Select(); err != nil {
-			if strings.Contains(err.Error(), "no rows in result set") {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-		}
-	}
-
-	default:
-		http.Error(w, "no valid grant_type", http.StatusBadRequest)
+	err, code := s.resolveGrantTypeAndUser(&user, r, grantType);
+	if err != nil {
+		http.Error(w, err.Error(), code)
 		return
 	}
 
@@ -100,19 +40,14 @@ func (s *server) Token(w http.ResponseWriter, r *http.Request) {
 
 	tokenRes, err := s.generateTokenResponse(user)
 	if err != nil {
-		fmt.Println(err.Error())
 		http.Error(w, "something went wrong. we are already investigating.", http.StatusInternalServerError)
 		return
 	}
 
-	userToken := model.UserToken{
-		RefreshToken: tokenRes.RefreshToken,
-		UserId:       user.Id,
-		Issued:       time.Now().UTC(),
-		UserAgent: 	  r.Header.Get("User-Agent"),
-	}
+	// add User Agent field to model to persist in db, but its omitted by json
+	tokenRes.UserAgent = r.Header.Get("User-Agent")
 
-	if err := s.db.Insert(&userToken); err != nil {
+	if err := s.db.Insert(&tokenRes); err != nil {
 		http.Error(w, "something went wrong. we are already investigating", http.StatusInternalServerError)
 		return
 	}
@@ -126,9 +61,65 @@ func (s *server) Token(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (s *server) generateTokenResponse(user model.User) (model.GrantTypeResponse, error) {
+func (s *server) resolveGrantTypeAndUser(u *model.User, r *http.Request, grantType string) (error, int) {
 
-	fmt.Printf("exp time: %d", time.Now().Add(6 * time.Minute).Unix())
+	switch grantType {
+	case "password": {
+		var gt model.GrantTypePassword
+
+		if err := s.decodeJson(r, &gt); err != nil {
+			return errors.New("malformed request"), http.StatusBadRequest
+		}
+
+		if err := s.db.Model(u).Where("email = ?", gt.Username).Select(); err != nil {
+			if strings.Contains(err.Error(), "no rows in result set") {
+				return errors.New("unauthorized"), http.StatusUnauthorized
+			}
+		}
+
+		err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(gt.Password))
+
+		if subtle.ConstantTimeCompare([]byte(gt.Username), []byte(u.Email)) != 1 || err != nil {
+			return errors.New("unauthorized"), http.StatusUnauthorized
+		}
+		return nil, 0
+	}
+	case "refresh_token": {
+		var gt model.GrantTypeRefreshToken
+		if err := s.decodeJson(r, &gt); err != nil {
+			return errors.New("malformed request"), http.StatusBadRequest
+		}
+
+		var claims jwt.StandardClaims
+		tkn, err := jwt.ParseWithClaims(gt.RefreshToken, claims, func(token *jwt.Token) (interface{}, error) {
+			return os.Getenv("jwtSecret"), nil
+		})
+
+		if err != nil {
+			if err == jwt.ErrSignatureInvalid {
+				return errors.New(""), http.StatusUnauthorized
+			}
+			return errors.New(""), http.StatusBadRequest
+		}
+
+		if !tkn.Valid {
+			return errors.New(""), http.StatusUnauthorized
+		}
+
+		if err := s.db.Model(&u).Where("id = ?", claims.Subject).Select(); err != nil {
+			if strings.Contains(err.Error(), "no rows in result set") {
+				return errors.New(""), http.StatusUnauthorized
+			}
+		}
+	}
+	default:
+		return errors.New( "no valid grant_type"), http.StatusBadRequest
+	}
+
+	return nil, 0
+}
+
+func (s *server) generateTokenResponse(user model.User) (model.GrantTypeResponse, error) {
 
 	tokenExp := time.Now().Add(6 * time.Minute).Unix()
 	refreshTokenExp := time.Now().Add(10 * time.Minute).Unix()
@@ -145,17 +136,15 @@ func (s *server) generateTokenResponse(user model.User) (model.GrantTypeResponse
 
 	tokenString, err := token.SignedString([]byte(os.Getenv("jwtSecret")))
 	if err != nil {
-		fmt.Println(err.Error())
 		return model.GrantTypeResponse{}, err
 	}
 
 	refreshTokenString, err := refreshToken.SignedString([]byte("test"))
 	if err != nil {
-		fmt.Println(err.Error())
 		return model.GrantTypeResponse{}, err
 	}
 
-	return model.GrantTypeResponse { TokenType: "Bearer", ExpiresIn: tokenExp, AccessToken: tokenString, RefreshToken: refreshTokenString }, nil
+	return model.GrantTypeResponse { UserId: user.Id, User: user, TokenType: "Bearer", ExpiresIn: tokenExp, AccessToken: tokenString, RefreshToken: refreshTokenString }, nil
 }
 
 func (s *server) checkGrantType(r *http.Request) (string, error) {
@@ -163,10 +152,10 @@ func (s *server) checkGrantType(r *http.Request) (string, error) {
 	if err := s.decodeJson(r, &jsonMap); err != nil {
 		return "", err
 	}
-	fmt.Printf("Json Map: %s", jsonMap)
 	return jsonMap["grant_type"], nil
 }
 
 func (s *server) checkIfUserBlocked(u model.User) bool {
+	fmt.Println(u)
 	return u.BlockedUntil.After(time.Now())
 }

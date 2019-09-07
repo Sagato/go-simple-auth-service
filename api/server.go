@@ -39,8 +39,6 @@ func (s *server) decodeJson(r *http.Request, v interface{}) error {
 		return err
 	}
 
-	fmt.Printf("Req Body: %v", string(body))
-
 	if err := json.Unmarshal(body, &v); err != nil {
 		return err
 	}
@@ -83,7 +81,7 @@ func Run() {
 		port,
 	)
 
-	es := email.NewEmailSender(&emailConfig,	"test", func(to []string) {})
+	es := email.NewEmailSender(&emailConfig,	"test")
 
 	s := &server {conn, r, bcrypt.New(4), es }
 	s.routes()

@@ -27,9 +27,15 @@ func NewTestDB() *pg.DB {
 }
 
 func CreateSchema(db *pg.DB) error {
-	for _, model := range []interface{}{(*model.User)(nil), (*model.Activation)(nil), (*model.UserToken)(nil)} {
+
+	for _, model := range []interface{}{
+		(*model.Activation)(nil),
+		(*model.GrantTypeResponse)(nil),
+		(*model.User)(nil),
+	} {
  		if err := db.DropTable(model, &orm.DropTableOptions{
 			IfExists: true,
+			Cascade:true,
 		}); err != nil {
 			return err
 		}
@@ -37,6 +43,7 @@ func CreateSchema(db *pg.DB) error {
 		err := db.CreateTable(model, &orm.CreateTableOptions{
 			Temp: false,
 			IfNotExists: true,
+			FKConstraints: true,
 		})
 		if err != nil {
 			return err
@@ -46,7 +53,12 @@ func CreateSchema(db *pg.DB) error {
 }
 
 func CreateTestSchemas(db *pg.DB) error {
-	for _, model := range []interface{}{(*model.User)(nil), (*model.Activation)(nil), (*model.UserToken)(nil)} {
+
+	for _, model := range []interface{}{
+		(*model.User)(nil),
+		(*model.Activation)(nil),
+		(*model.GrantTypeResponse)(nil),
+	} {
 		if err := db.DropTable(model, &orm.DropTableOptions{
 			IfExists: true,
 		}); err != nil {

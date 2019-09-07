@@ -16,9 +16,12 @@ type User struct {
 	Id int `json:"id" sql:",pk"`
 	Username string `json:"username" sql:",notnull,unique"`
 	Email string `json:"email" sql:",notnull,unique"`
-	PasswordHash string `json:"password_hash" sql:",notnull"`
-	Active bool `json:"active" sql:",notnull"`
+	PasswordHash string `json:"-" sql:",notnull"`
+	Active bool `json:"-" sql:",notnull"`
 	BlockedUntil time.Time `json:"blocked_until"`
+	Tokens []*GrantTypeResponse `json:"-" pg:"fk:user_id"`
+	CreatedAt time.Time `json:"-" sql:"default:now()"`
+	UpdatedAt time.Time `json:"-"`
 }
 
 type UserDTO struct {
