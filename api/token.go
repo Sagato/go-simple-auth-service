@@ -96,10 +96,7 @@ func (s *server) resolveGrantTypeAndUser(u *model.User, r *http.Request, grantTy
 		})
 
 		if err != nil {
-			if err == jwt.ErrSignatureInvalid {
-				return errors.New(""), http.StatusUnauthorized
-			}
-			return errors.New(""), http.StatusBadRequest
+			return errors.New(""), http.StatusUnauthorized
 		}
 
 		if !tkn.Valid {
@@ -122,7 +119,7 @@ func (s *server) resolveGrantTypeAndUser(u *model.User, r *http.Request, grantTy
 func (s *server) generateTokenResponse(user model.User) (model.GrantTypeResponse, error) {
 
 	tokenExp := time.Now().Add(6 * time.Minute).Unix()
-	refreshTokenExp := time.Now().Add(10 * time.Minute).Unix()
+	refreshTokenExp := time.Now().Add(1 * time.Minute).Unix()
 
 	uId := strconv.Itoa(user.Id)
 
