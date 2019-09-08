@@ -10,6 +10,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -82,7 +83,6 @@ func (s *server) resolveGrantTypeAndUser(u *model.User, r *http.Request, grantTy
 		if subtle.ConstantTimeCompare([]byte(gt.Username), []byte(u.Email)) != 1 || err != nil {
 			return errors.New("unauthorized"), http.StatusUnauthorized
 		}
-		return nil, 0
 	}
 	case "refresh_token": {
 		var gt model.GrantTypeRefreshToken
@@ -91,8 +91,8 @@ func (s *server) resolveGrantTypeAndUser(u *model.User, r *http.Request, grantTy
 		}
 
 		var claims jwt.StandardClaims
-		tkn, err := jwt.ParseWithClaims(gt.RefreshToken, claims, func(token *jwt.Token) (interface{}, error) {
-			return os.Getenv("jwtSecret"), nil
+		tkn, err := jwt.ParseWithClaims(gt.RefreshToken, &claims, func(token *jwt.Token) (interface{}, error) {
+			return []byte(os.Getenv("jwtSecret")), nil
 		})
 
 		if err != nil {
@@ -124,22 +124,28 @@ func (s *server) generateTokenResponse(user model.User) (model.GrantTypeResponse
 	tokenExp := time.Now().Add(6 * time.Minute).Unix()
 	refreshTokenExp := time.Now().Add(10 * time.Minute).Unix()
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims {
-		"sub": user.Id,
-		"exp": tokenExp,
-	})
+	uId := strconv.Itoa(user.Id)
 
-	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub": user.Id,
-		"exp": refreshTokenExp,
-	})
+	claims := &jwt.StandardClaims {
+		Subject: uId,
+		ExpiresAt: tokenExp,
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	rClaims := &jwt.StandardClaims {
+		Subject: uId,
+		ExpiresAt: refreshTokenExp,
+	}
+
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, rClaims)
 
 	tokenString, err := token.SignedString([]byte(os.Getenv("jwtSecret")))
 	if err != nil {
 		return model.GrantTypeResponse{}, err
 	}
 
-	refreshTokenString, err := refreshToken.SignedString([]byte("test"))
+	refreshTokenString, err := refreshToken.SignedString([]byte(os.Getenv("jwtSecret")))
 	if err != nil {
 		return model.GrantTypeResponse{}, err
 	}
